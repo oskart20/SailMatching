@@ -1,10 +1,4 @@
-import copy
-
-from data import *
 from algorithm import *
-
-import time
-
 
 if __name__ == '__main__':
 	# students = 5, teachers = 2, boats = 2
@@ -18,12 +12,15 @@ if __name__ == '__main__':
 	anton = Teacher("Anton", 0, [5, 3, 1, 2, 4], [1], [2, 1])
 	oskar = Teacher("Oskar", 1, [1, 4, 2, 3, 5], [1], [1, 2])
 
-	baltic = Boat("Baltic", model=0, capacity_students=3, capacity_teachers=1)
-	north = Boat("North", model=1, capacity_students=2, capacity_teachers=1)
+	baltic = Boat("Baltic", model=0, max_students=5, max_teachers=2, capacity_students=4, capacity_teachers=2,
+				  min_teachers=1)
+	north = Boat("North", model=1, max_students=5, max_teachers=2, capacity_students=2, capacity_teachers=2,
+				 min_teachers=1)
 
 	data = Data([klaus, gunther, rey, sandra, sabine], [anton, oskar], [baltic, north])
-	naive(data)
-	print(str(data.boats))
-	for boat in data.boats:
-		boat.get_graph().save(f'{boat.name}-{boat.model}_filled.gv')
 
+	best_population = genetic(data, b=1000, g=100)
+	print([f" {str(chromosome)}: {str(data.fitness(chromosome))} " for chromosome in best_population.chromosomes])
+	print(best_population.fitness)
+	data.decode(best_population)
+	print(str(data.boats))
