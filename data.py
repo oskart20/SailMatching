@@ -352,12 +352,12 @@ class Population:
 		self.num_teachers = data.num_teachers
 		self.data = data
 		self.fitness = 0
-		if self.feasible():
-			for chromosome in self.chromosomes:
-				self.fitness += data.fitness(chromosome)
+		for chromosome in self.chromosomes:
+			self.fitness += data.fitness(chromosome)
+		self.fitness *= self.feasible()
 
 	def __str__(self):
-		return f"instances: {len(self.chromosomes)}\nchromosomes: {str(self.chromosomes)}\nfeasible: {self.feasible()}\nfitness: {self.fitness}\n"
+		return f"instances: {len(self.chromosomes)}\nchromosomes: {str(self.chromosomes)}\nfitness: {self.fitness}\n"
 
 	def __repr__(self):
 		return str(self)
@@ -378,8 +378,11 @@ class Population:
 		self.fitness = 0
 		for chromosome in self.chromosomes:
 			self.fitness += self.data.fitness(chromosome)
-		if not self.feasible():
+		feasibility = self.feasible()
+		if feasibility == 0:
 			self.fitness = 0
+		else:
+			self.fitness += feasibility
 		return self
 
 	def feasible(self):
@@ -391,15 +394,18 @@ class Population:
 			else:
 				dummy_students += np.fromstring(chromosome.student_gene.bin, 'u1') - ord('0')
 				dummy_teachers += np.fromstring(chromosome.teacher_gene.bin, 'u1') - ord('0')
-		if dummy_students.sum() != self.num_students:
+		bonus = dummy_students.sum()
+		if bonus > self.num_students:
 			return 0
+		elif bonus == self.num_students:
+			bonus *= 10
 		for element in dummy_students:
 			if element > 1:
 				return 0
 		for element in dummy_teachers:
 			if element > 1:
 				return 0
-		return 1
+		return bonus
 
 	@staticmethod
 	def interleave(gene_a, gene_b, point):
