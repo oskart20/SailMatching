@@ -6,7 +6,7 @@ if __name__ == '__main__':
 	klaus = Student("Klaus", 0, [4, 3, 2, 1], [2, 1], [2, 1])
 	gunther = Student("Gunther", 1, [1, 2, 3, 4], [1, 2], [2, 1])
 	rey = Student("Rey", 2, [3, 2, 4, 1], [1, 2], [2, 1])
-	sandra = Student("Sandra", 3, [3, 2, 1, 40], [1, 2], [1, 2])
+	sandra = Student("Sandra", 3, [3, 2, 1, 4], [1, 2], [1, 2])
 	sabine = Student("Sabine", 4, [2, 4, 1, 3], [2, 1], [1, 2])
 
 	anton = Teacher("Anton", 0, [5, 3, 1, 2, 4], [1], [2, 1])
@@ -18,7 +18,8 @@ if __name__ == '__main__':
 				 min_teachers=1)
 
 	data = Data([klaus, gunther, rey, sandra, sabine], [anton, oskar], [baltic, north])
-	created = genetic(data, b=1000, g=100)
-	print(created.boats)
-	for boat in data.boats:
-		boat.get_graph().render(f'graphs/{boat.name}:{boat.calculate_weight()}.gv', cleanup=True)
+	created_data, best_population = genetic(data, b=1000, g=20)
+	print(created_data.boats)
+	print(best_population)
+	for i in range(0, len(created_data.boats)):
+		created_data.boats[i].get_graph().render(f'graphs/{created_data.boats[i].name}:{created_data.fitness(best_population.chromosomes[i])}.gv', cleanup=True)

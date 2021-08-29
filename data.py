@@ -18,8 +18,10 @@ class Data:
 		self.total_capacity_students, self.total_capacity_teachers = self.total_capacities()
 		self.student_matrix = self.student_matrix()
 		self.student_teacher_matrix = self.student_teacher_matrix()
+		self.student_boat_matrix = self.student_boat_matrix()
 		self.teacher_matrix = self.teacher_matrix()
 		self.teacher_student_matrix = self.teacher_student_matrix()
+		self.teacher_boat_matrix = self.teacher_boat_matrix()
 
 	def total_capacities(self):
 		total_students = 0
@@ -93,16 +95,17 @@ class Data:
 		for student in chromosome.student_gene:
 			if student:
 				cost += np.dot(self.student_matrix[i], chromosome.student_gene) + np.dot(self.student_teacher_matrix[i],
-																						 chromosome.teacher_gene)
+																						 chromosome.teacher_gene) + np.sum(
+					self.student_boat_matrix[:, chromosome.identifier])
 			i += 1
 		j = 0
 		for teacher in chromosome.teacher_gene:
 			if teacher:
 				cost += np.dot(self.teacher_matrix[j], chromosome.teacher_gene) + np.dot(self.teacher_student_matrix[j],
-																						 chromosome.student_gene)
+																						 chromosome.student_gene) + np.sum(
+					self.teacher_boat_matrix[:, chromosome.identifier])
 			j += 1
-		if chromosome.student_gene.len != self.num_students \
-				or chromosome.teacher_gene.len != self.num_teachers:
+		if chromosome.student_gene.len != self.num_students or chromosome.teacher_gene.len != self.num_teachers:
 			return -1 * cost
 		else:
 			return cost
@@ -110,6 +113,16 @@ class Data:
 	def decode(self, population):
 		for i in range(0, len(population.chromosomes)):
 			population.chromosomes[i].decode(self.boats[i], self)
+
+	def encode(self):
+		chromosomes = []
+		s_gene = BitArray()
+		t_gene = BitArray()
+		for i in range(0, len(self.boats)):
+			chromosomes.append(self.boats[i].encode().chromosome)
+			s_gene.append(self.boats[i].chromosome.student_gene)
+			t_gene.append(self.boats[i].chromosome.teacher_gene)
+		return Population(self, chromosomes, s_gene, t_gene)
 
 
 class Student:
@@ -200,7 +213,7 @@ class Teacher:
 
 class Boat:
 
-	def __init__(self, name, model, capacity_students: int, capacity_teachers: int, max_students: int,
+	def __init__(self, name, model: int, capacity_students: int, capacity_teachers: int, max_students: int,
 				 max_teachers: int, min_teachers: int):
 		self.name = name
 		self.model = model
@@ -208,7 +221,8 @@ class Boat:
 		self.capacity_teachers = capacity_teachers
 		self.students: list = []
 		self.teachers: list = []
-		self.chromosome = Chromosome(max_students, max_teachers, self.capacity_students, self.capacity_teachers,
+		self.chromosome = Chromosome(self.model, max_students, max_teachers, self.capacity_students,
+									 self.capacity_teachers,
 									 min_teachers)
 
 	def calculate_weight(self):
@@ -220,7 +234,7 @@ class Boat:
 		return weight
 
 	def __str__(self):
-		return f"\n{self.name}: {self.model}\nStudents: {str(self.students)}\nTeachers: {str(self.teachers)}\nTotal happiness: {self.calculate_weight()}"
+		return f"\n{self.name}: {self.model}\nStudents: {str(self.students)}\nTeachers: {str(self.teachers)}\n"
 
 	def __repr__(self):
 		return str(self)
@@ -254,10 +268,27 @@ class Boat:
 							   label=str(teacher.get_teacher_weight(other_teacher.identifier)))
 		return graph
 
+	def encode(self, data):
+		i = 0
+		for student in data.students:
+			if student in self.students:
+				self.chromosome.student_gene[i] = 1
+			else:
+				self.chromosome.student_gene[i] = 0
+			i += 1
+		j = 0
+		for teacher in data.teachers:
+			if teacher in self.teachers:
+				self.chromosome.teacher_gene[j] = 1
+			else:
+				self.chromosome.teacher_gene[j] = 0
+			j += 1
+		return self
 
 class Chromosome:
 
-	def __init__(self, num_students: int, num_teachers: int, capacity_students: int, capacity_teachers: int,
+	def __init__(self, identifier: int, num_students: int, num_teachers: int, capacity_students: int,
+				 capacity_teachers: int,
 				 min_teachers: int):
 		self.student_gene = BitArray(length=num_students)
 		self.teacher_gene = BitArray(length=num_teachers)
@@ -266,6 +297,7 @@ class Chromosome:
 		self.min_teachers = min_teachers
 		self.num_students = num_students
 		self.num_teachers = num_teachers
+		self.identifier = identifier
 
 	def feasible(self):
 		teachers_needed = self.student_gene.any(1)
@@ -304,6 +336,7 @@ class Chromosome:
 				boat.teachers.append(data.teachers[j])
 		return self
 
+
 class Population:
 
 	def __init__(self, data, chromosomes, s_gene=BitArray(), t_gene=BitArray()):
@@ -317,6 +350,12 @@ class Population:
 		if self.feasible():
 			for chromosome in self.chromosomes:
 				self.fitness += data.fitness(chromosome)
+
+	def __str__(self):
+		return f"s-gene: {str(self.s_gene.bin)} t-gene: {str(self.t_gene.bin)}\nchromosomes: {str(self.chromosomes)}\nfeasible: {self.feasible()}\nfitness: {self.fitness}\n"
+
+	def __repr__(self):
+		return str(self)
 
 	@classmethod
 	def child(cls, data, s_gene, t_gene):
@@ -348,6 +387,8 @@ class Population:
 			self.fitness += self.data.fitness(chromosome)
 			s_index += self.num_students
 			t_index += self.num_teachers
+		self.s_gene = s_gene.copy()
+		self.t_gene = t_gene.copy()
 		if not self.feasible():
 			self.fitness = 0
 		return self
@@ -408,8 +449,10 @@ class Population:
 	@staticmethod
 	def u_crossover(population_a, population_b):
 		threshold = 0.5
-		child_s_a, child_s_b = BitArray(uint=population_a.s_gene.uint, length=population_a.s_gene.len), BitArray(uint=population_b.s_gene.uint, length=population_b.s_gene.len)
-		child_t_a, child_t_b = BitArray(uint=population_a.t_gene.uint, length=population_a.t_gene.len), BitArray(uint=population_b.t_gene.uint, length=population_b.t_gene.len)
+		child_s_a, child_s_b = BitArray(uint=population_a.s_gene.uint, length=population_a.s_gene.len), BitArray(
+			uint=population_b.s_gene.uint, length=population_b.s_gene.len)
+		child_t_a, child_t_b = BitArray(uint=population_a.t_gene.uint, length=population_a.t_gene.len), BitArray(
+			uint=population_b.t_gene.uint, length=population_b.t_gene.len)
 		for i in range(0, population_a.s_gene.len):
 			if random.random() < threshold:
 				temp = child_s_a[i]

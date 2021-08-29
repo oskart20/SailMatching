@@ -16,10 +16,10 @@ def naive(data):
 			if boat.capacity_teachers > len(boat.teachers):
 				assignee: Teacher = data.get_next_teacher(boat)
 				boat.teachers.append(assignee)
-	return data
+	return data, data.encode()
 
 
-def genetic(data, b=1000, g=10, carry=0.1):
+def genetic(data, b=1000, g=100, carry=0.1):
 	# populate
 	generation = []
 	for i in range(0, b):
@@ -32,10 +32,10 @@ def genetic(data, b=1000, g=10, carry=0.1):
 		selection = sorted(generation, key=get_fitness, reverse=True)[:int(carry * b)]
 		pbar.set_description(f"Fitness = {selection[0].fitness}")
 	data.decode(selection[0])
-	return data
+	return data, selection[0]
 
 
-def reproduce(carryover, mutations=0.05, depth=0.2, b=100):
+def reproduce(carryover, mutations=0.05, depth=0.2, b=1000):
 	generation = carryover
 	for i in range(len(carryover), b >> 1):
 		parents = random.sample(carryover, 2)
