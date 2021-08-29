@@ -28,6 +28,7 @@ def genetic(data, b=1000, g=100, carry=0.1):
 	# evolution era
 	pbar = tqdm(range(0, g))
 	for j in pbar:
+		#print(generation)
 		generation = reproduce(selection, b=b)
 		selection = sorted(generation, key=get_fitness, reverse=True)[:int(carry * b)]
 		pbar.set_description(f"Fitness = {selection[0].fitness}")
@@ -39,8 +40,7 @@ def reproduce(carryover, mutations=0.05, depth=0.2, b=1000):
 	generation = carryover
 	for i in range(len(carryover), b >> 1):
 		parents = random.sample(carryover, 2)
-		if parents[0].s_gene.len and parents[0].t_gene.len and parents[1].s_gene.len and parents[1].t_gene.len:
-			generation.extend(Population.u_crossover(parents[0], parents[1]))
-			if random.randint(0, b) < mutations * b:
-				generation[-1] = Population.mutate(generation[-1], depth)
+		generation.extend(Population.u_crossover(parents[0], parents[1]))
+		if random.randint(0, b) < mutations * b:
+			generation[-1] = Population.mutate(generation[-1], depth)
 	return generation

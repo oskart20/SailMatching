@@ -116,13 +116,9 @@ class Data:
 
 	def encode(self):
 		chromosomes = []
-		s_gene = BitArray()
-		t_gene = BitArray()
 		for i in range(0, len(self.boats)):
 			chromosomes.append(self.boats[i].encode().chromosome)
-			s_gene.append(self.boats[i].chromosome.student_gene)
-			t_gene.append(self.boats[i].chromosome.teacher_gene)
-		return Population(self, chromosomes, s_gene, t_gene)
+		return Population(self, chromosomes)
 
 
 class Student:
@@ -221,9 +217,9 @@ class Boat:
 		self.capacity_teachers = capacity_teachers
 		self.students: list = []
 		self.teachers: list = []
-		self.chromosome = Chromosome(self.model, max_students, max_teachers, self.capacity_students,
-									 self.capacity_teachers,
-									 min_teachers)
+		self.chromosome = Chromosome.origin(self.model, max_students, max_teachers, self.capacity_students,
+											self.capacity_teachers,
+											min_teachers)
 
 	def calculate_weight(self):
 		weight = 0
@@ -285,19 +281,27 @@ class Boat:
 			j += 1
 		return self
 
+
 class Chromosome:
 
 	def __init__(self, identifier: int, num_students: int, num_teachers: int, capacity_students: int,
 				 capacity_teachers: int,
-				 min_teachers: int):
-		self.student_gene = BitArray(length=num_students)
-		self.teacher_gene = BitArray(length=num_teachers)
+				 min_teachers: int, student_gene, teacher_gene):
+		self.student_gene = student_gene
+		self.teacher_gene = teacher_gene
 		self.capacity_students = capacity_students
 		self.capacity_teachers = capacity_teachers
 		self.min_teachers = min_teachers
 		self.num_students = num_students
 		self.num_teachers = num_teachers
 		self.identifier = identifier
+
+	@classmethod
+	def origin(cls, identifier: int, num_students: int, num_teachers: int, capacity_students: int,
+			   capacity_teachers: int,
+			   min_teachers: int):
+		return cls(identifier, num_students, num_teachers, capacity_students, capacity_teachers, min_teachers,
+				   BitArray(length=num_students), BitArray(length=num_teachers))
 
 	def feasible(self):
 		teachers_needed = self.student_gene.any(1)
@@ -326,6 +330,9 @@ class Chromosome:
 	def __repr__(self):
 		return str(self)
 
+	def copy_info(self, student_gene, teacher_gene):
+		return Chromosome(self.identifier, self.num_students, self.num_teachers, self.capacity_students, self.capacity_teachers, self.min_teachers, student_gene, teacher_gene)
+
 	def decode(self, boat: Boat, data: Data):
 		boat.chromosome = self
 		for i, val in enumerate(self.student_gene):
@@ -339,10 +346,8 @@ class Chromosome:
 
 class Population:
 
-	def __init__(self, data, chromosomes, s_gene=BitArray(), t_gene=BitArray()):
+	def __init__(self, data, chromosomes):
 		self.chromosomes = chromosomes
-		self.s_gene = s_gene
-		self.t_gene = t_gene
 		self.num_students = data.num_students
 		self.num_teachers = data.num_teachers
 		self.data = data
@@ -352,43 +357,27 @@ class Population:
 				self.fitness += data.fitness(chromosome)
 
 	def __str__(self):
-		return f"s-gene: {str(self.s_gene.bin)} t-gene: {str(self.t_gene.bin)}\nchromosomes: {str(self.chromosomes)}\nfeasible: {self.feasible()}\nfitness: {self.fitness}\n"
+		return f"instances: {len(self.chromosomes)}\nchromosomes: {str(self.chromosomes)}\nfeasible: {self.feasible()}\nfitness: {self.fitness}\n"
 
 	def __repr__(self):
 		return str(self)
 
 	@classmethod
-	def child(cls, data, s_gene, t_gene):
-		temp_list = []
-		for c in data.boats:
-			temp_list.append(copy.deepcopy(c.chromosome))
-		temp = cls(data, temp_list)
-		return temp.update(s_gene, t_gene)
+	def child(cls, data, chromosomes):
+		return cls(data, chromosomes)
 
 	@classmethod
 	def origin(cls, data):
 		chromosomes = []
-		s_gene = BitArray()
-		t_gene = BitArray()
 		for boat in data.boats:
-			temp: Chromosome = boat.chromosome.randomize()
-			chromosomes.append(temp)
-			s_gene += temp.student_gene
-			t_gene += temp.teacher_gene
-		return cls(data, chromosomes, s_gene, t_gene)
+			temp: Chromosome = copy.deepcopy(boat.chromosome)
+			chromosomes.append(temp.randomize())
+		return cls(data, chromosomes)
 
-	def update(self, s_gene: BitArray, t_gene: BitArray):
-		s_index = 0
-		t_index = 0
+	def update(self):
 		self.fitness = 0
 		for chromosome in self.chromosomes:
-			chromosome.set_student_gene(s_gene[s_index:(s_index + self.num_students)])
-			chromosome.set_teacher_gene(t_gene[t_index:(t_index + self.num_teachers)])
 			self.fitness += self.data.fitness(chromosome)
-			s_index += self.num_students
-			t_index += self.num_teachers
-		self.s_gene = s_gene.copy()
-		self.t_gene = t_gene.copy()
 		if not self.feasible():
 			self.fitness = 0
 		return self
@@ -418,50 +407,73 @@ class Population:
 
 	@staticmethod
 	def mutate(population, k):
-		flip_s = random.sample(range(0, population.s_gene.len), int(k * population.s_gene.len))
-		flip_t = random.sample(range(0, population.t_gene.len), int(k * population.t_gene.len))
-		population.s_gene.invert(flip_s)
-		population.t_gene.invert(flip_t)
-		return Population.child(population.data, population.s_gene, population.t_gene)
+		flip_s = random.sample(range(0, population.num_students), int(k * population.num_students))
+		flip_t = random.sample(range(0, population.num_teachers), int(k * population.num_teachers))
+		chromosomes = []
+		for j in range(0, len(population.chromosomes)):
+			s = BitArray(uint=population.chromosomes[j].student_gene.uint, length=population.num_students)
+			t = BitArray(uint=population.chromosomes[j].teacher_gene.uint, length=population.num_teachers)
+			s.invert(flip_s)
+			t.invert(flip_t)
+			chromosomes.append(population.chromosomes[j].copy_info(s, t))
+		return Population.child(population.data, chromosomes)
 
 	@staticmethod
 	def o_p_crossover(population_a, population_b):
-		point_s = random.randint(0, population_a.s_gene.len)
-		point_t = random.randint(0, population_a.t_gene.len)
-		child_s_a, child_s_b = Population.interleave(population_a.s_gene, population_b.s_gene, point_s)
-		child_t_a, child_t_b = Population.interleave(population_a.t_gene, population_b.t_gene, point_t)
-		return Population.child(population_a.data, child_s_a, child_t_a), \
-			   Population.child(population_b.data, child_s_b, child_t_b)
+		point_s = random.randint(0, population_a.num_students)
+		point_t = random.randint(0, population_a.num_teachers)
+		a_chromosomes = []
+		b_chromosomes = []
+		for j in range(0, len(population_a.chromosomes)):
+			a_s, b_s = Population.interleave(population_a.chromosomes[j].student_gene,
+											 population_b.chromosomes[j].student_gene, point_s)
+			a_t, b_t = Population.interleave(population_a.chromosomes[j].teacher_gene,
+											 population_b.chromosomes[j].teacher_gene, point_t)
+			a_chromosomes.append(population_a.chromosomes[j].copy_info(a_s, a_t))
+			b_chromosomes.append(population_b.chromosomes[j].copy_info(b_s, b_t))
+		return Population.child(population_a.data, a_chromosomes), \
+			   Population.child(population_b.data, b_chromosomes)
 
 	@staticmethod
 	def m_p_crossover(population_a, population_b):
-		points_s = random.sample(range(0, population_a.s_gene.len), 2)
-		points_t = random.sample(range(0, population_a.t_gene.len), 1)
-		child_s_a, child_s_b = BitArray(length=population_a.s_gene.len), BitArray(length=population_a.s_gene.len)
-		child_t_a, child_t_b = BitArray(length=population_a.t_gene.len), BitArray(length=population_a.t_gene.len)
-		for p_s in points_s:
-			child_s_a, child_s_b = Population.interleave(population_a.s_gene, population_b.s_gene, p_s)
-		for p_t in points_t:
-			child_t_a, child_t_b = Population.interleave(population_a.t_gene, population_b.t_gene, p_t)
-		return Population.child(population_a.data, child_s_a, child_t_a), \
-			   Population.child(population_b.data, child_s_b, child_t_b)
+		points_s = random.sample(range(0, population_a.num_students), 2)
+		points_t = random.sample(range(0, population_a.num_teachers), 1)
+		a_chromosomes = []
+		b_chromosomes = []
+		a_s, b_s, a_t, b_t = BitArray(), BitArray(), BitArray(), BitArray()
+		for j in range(0, len(population_a.chromosomes)):
+			for p_s in points_s:
+				a_s, b_s = Population.interleave(population_a.chromosomes[j].student_gene,
+												 population_b.chromosomes[j].student_gene, p_s)
+			for p_t in points_t:
+				a_t, b_t = Population.interleave(population_a.chromosomes[j].teacher_gene,
+												 population_b.chromosomes[j].teacher_gene, p_t)
+			a_chromosomes.append(population_a.chromosomes[j].copy_info(a_s, a_t))
+			b_chromosomes.append(population_b.chromosomes[j].copy_info(b_s, b_t))
+		return Population.child(population_a.data, a_chromosomes), \
+			   Population.child(population_b.data, b_chromosomes)
 
 	@staticmethod
 	def u_crossover(population_a, population_b):
 		threshold = 0.5
-		child_s_a, child_s_b = BitArray(uint=population_a.s_gene.uint, length=population_a.s_gene.len), BitArray(
-			uint=population_b.s_gene.uint, length=population_b.s_gene.len)
-		child_t_a, child_t_b = BitArray(uint=population_a.t_gene.uint, length=population_a.t_gene.len), BitArray(
-			uint=population_b.t_gene.uint, length=population_b.t_gene.len)
-		for i in range(0, population_a.s_gene.len):
-			if random.random() < threshold:
-				temp = child_s_a[i]
-				child_s_a[i] = child_s_b[i]
-				child_s_b[i] = temp
-		for j in range(0, population_a.t_gene.len):
-			if random.random() < threshold:
-				temp = child_t_a[j]
-				child_t_a[j] = child_t_b[j]
-				child_t_b[j] = temp
-		return Population.child(population_a.data, child_s_a, child_t_a), \
-			   Population.child(population_b.data, child_s_b, child_t_b)
+		a_chromosomes = list()
+		b_chromosomes = list()
+		for j in range(0, len(population_a.chromosomes)):
+			a_s = BitArray(uint=population_a.chromosomes[j].student_gene.uint, length=population_a.num_students)
+			b_s = BitArray(uint=population_b.chromosomes[j].student_gene.uint, length=population_b.num_students)
+			a_t = BitArray(uint=population_a.chromosomes[j].teacher_gene.uint, length=population_a.num_teachers)
+			b_t = BitArray(uint=population_b.chromosomes[j].teacher_gene.uint, length=population_b.num_teachers)
+			for i in range(0, population_a.num_students):
+				if random.random() < threshold:
+					temp = a_s[i]
+					a_s[i] = b_s[i]
+					b_s[i] = temp
+			for i in range(0, population_a.num_teachers):
+				if random.random() < threshold:
+					temp = a_t[i]
+					a_t[i] = b_t[i]
+					b_t[i] = temp
+			a_chromosomes.append(population_a.chromosomes[j].copy_info(a_s, a_t))
+			b_chromosomes.append(population_b.chromosomes[j].copy_info(b_s, b_t))
+		return Population.child(population_a.data, a_chromosomes), \
+			   Population.child(population_b.data, b_chromosomes)
