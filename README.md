@@ -1,2 +1,2 @@
 # SailMatching
-matching algorithm for sailing club
+matching algorithms for sailing club
