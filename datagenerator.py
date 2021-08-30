@@ -1,8 +1,10 @@
 from data import Data, Student, Teacher, Boat
 import random
+import os
 
 
 def generate_data(n):
+	random.seed(1)
 	n = min(n, 10000)
 	t = (n >> 2) + 1
 	b = (n >> 2) + 1
@@ -24,5 +26,6 @@ def generate_data(n):
 			random.shuffle(pref_boats)
 			teachers.append(Teacher(f.readline(), j, pref_students, pref_teachers[1:], pref_boats))
 		for h in range(0, b):
-			boats.append(Boat(f.readline(), h, random.randint(4, 6), 1, n, t, 1))
+			boats.append(Boat(f.readline(), h, 6, 1, n, t, 1))
+	random.seed(random.SystemRandom().randint(1, 1000000))
 	return Data(students, teachers, boats)

@@ -98,6 +98,10 @@ class Data:
 																						 chromosome.teacher_gene) + np.sum(
 					self.student_boat_matrix[:, chromosome.identifier])
 			i += 1
+		if cost == 0 and not chromosome.teacher_gene.any(1):
+			return 10
+		elif cost == 0:
+			return 0
 		j = 0
 		for teacher in chromosome.teacher_gene:
 			if teacher:
@@ -105,10 +109,7 @@ class Data:
 																						 chromosome.student_gene) + np.sum(
 					self.teacher_boat_matrix[:, chromosome.identifier])
 			j += 1
-		if chromosome.student_gene.len != self.num_students or chromosome.teacher_gene.len != self.num_teachers:
-			return -1 * cost
-		else:
-			return cost
+		return cost
 
 	def decode(self, population):
 		for i in range(0, len(population.chromosomes)):
@@ -117,7 +118,7 @@ class Data:
 	def encode(self):
 		chromosomes = []
 		for i in range(0, len(self.boats)):
-			chromosomes.append(self.boats[i].encode().chromosome)
+			chromosomes.append(self.boats[i].encode(self).chromosome)
 		return Population(self, chromosomes)
 
 
@@ -362,6 +363,19 @@ class Population:
 	def __repr__(self):
 		return str(self)
 
+	def randomswitch(self):
+		switch_index = random.randint(0, self.num_students - 1)
+		filtered = list(filter(lambda c: c.student_gene.count(1) > 0, self.chromosomes))
+		if len(filtered) < 2:
+			return self
+		else:
+			c1, c2 = random.sample(filtered, 2)
+			temp = c1.student_gene[switch_index]
+			c1.student_gene[switch_index] = c2.student_gene[switch_index]
+			c2.student_gene[switch_index] = temp
+		return self
+
+
 	@classmethod
 	def child(cls, data, chromosomes):
 		return cls(data, chromosomes)
@@ -372,6 +386,14 @@ class Population:
 		for boat in data.boats:
 			temp: Chromosome = copy.deepcopy(boat.chromosome)
 			chromosomes.append(temp.randomize())
+		return cls(data, chromosomes)
+
+	@classmethod
+	def initialize(cls, data, population):
+		chromosomes = []
+		for chromosome in population.chromosomes:
+			temp: Chromosome = copy.deepcopy(chromosome)
+			chromosomes.append(temp)
 		return cls(data, chromosomes)
 
 	def update(self):
